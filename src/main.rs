@@ -5,26 +5,53 @@ extern crate prettytable;
 extern crate clap;
 
 use clap::{Arg, App, SubCommand};
-use rusoto_core::Region;
-use rusoto_ec2::{Ec2, Ec2Client};
-
-pub struct Instance {
-    name: Option<String>,
-    id: String,
-    instance_type: String,
-    pri_ip: String,
-    pub_ip: Option<String>,
-    state: String,
-}
 
 mod simple_ec2 {
-    use super::Instance;
-
     use rusoto_core::Region;
     use rusoto_ec2::{Ec2, Ec2Client};
 
+    pub struct Instance {
+        name: Option<String>,
+        id: String,
+        instance_type: String,
+        pri_ip: String,
+        pub_ip: Option<String>,
+        state: String,
+    }
+
+    impl Instance {
+        /// Starts the instance.
+        pub fn start(&self) -> rusoto_ec2::InstanceStateChange {
+            let ec2 = Ec2Client::new(Region::default());
+            let mut req = rusoto_ec2::StartInstancesRequest::default();
+            req.instance_ids = vec![self.id.clone()];
+            ec2
+                .start_instances(req)
+                .sync()
+                .expect("Failed to start instances")
+                .starting_instances
+                .unwrap()[0].clone()
+        }
+    
+        /// Stops the instance.
+        pub fn stop(&self) -> rusoto_ec2::InstanceStateChange {
+            let ec2 = Ec2Client::new(Region::default());
+            let mut req = rusoto_ec2::StopInstancesRequest::default();
+            req.instance_ids = vec![self.id.clone()];
+            ec2
+                .stop_instances(req)
+                .sync()
+                .expect("Failed to stop instances")
+                .stopping_instances
+                .unwrap()[0].clone()
+        }
+    
+        // TODO: implement the function pull, which pulls/updates the instance profile from AWS
+        // fn pull(&mut self) 
+    }
+
     pub fn list() -> Vec<Instance> {
-        let ec2 = Ec2Client::new(Region::ApEast1);
+        let ec2 = Ec2Client::new(Region::default());
         let res = ec2
             .describe_instances(rusoto_ec2::DescribeInstancesRequest::default())
             .sync()
@@ -63,6 +90,7 @@ mod simple_ec2 {
 
     pub fn print_instances(instances: &[Instance]) {
         let mut table = prettytable::Table::new();
+        println!("Region: {}", Region::default().name());
         table.add_row(row!["Name", "ID", "Type", "Private IP", "Public IP", "State"]);
 
         for i in instances {
@@ -95,36 +123,6 @@ mod simple_ec2 {
     }
 }
 
-impl Instance {
-    /// Starts the instance.
-    fn start(&self) -> rusoto_ec2::InstanceStateChange {
-        let ec2 = Ec2Client::new(Region::ApEast1);
-        let mut req = rusoto_ec2::StartInstancesRequest::default();
-        req.instance_ids = vec![self.id.clone()];
-        ec2
-            .start_instances(req)
-            .sync()
-            .expect("Failed to start instances")
-            .starting_instances
-            .unwrap()[0].clone()
-    }
-
-    /// Stops the instance.
-    fn stop(&self) -> rusoto_ec2::InstanceStateChange {
-        let ec2 = Ec2Client::new(Region::ApEast1);
-        let mut req = rusoto_ec2::StopInstancesRequest::default();
-        req.instance_ids = vec![self.id.clone()];
-        ec2
-            .stop_instances(req)
-            .sync()
-            .expect("Failed to stop instances")
-            .stopping_instances
-            .unwrap()[0].clone()
-    }
-
-    // TODO: implement the function pull, which pulls/updates the instance profile from AWS
-    // fn pull(&mut self) 
-}
 
 fn main() {
     let matches = App::new("ah")
